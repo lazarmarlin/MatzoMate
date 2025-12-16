@@ -5,7 +5,7 @@
 # test = findProductName(testInput)
 # for url in test:
 #    print(url)
-from ddgs import DDGS  # pyright: ignore[reportMissingImports]
+from ddgs import DDGS
 
 import amazonsearch
 
