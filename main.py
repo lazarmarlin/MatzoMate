@@ -1,28 +1,60 @@
-import json
-from pickle import EMPTY_DICT
-from types import NoneType
-
-import requests
+import time
 from openfoodfacts import API, APIVersion, Country, Environment
-
-import aisearch
 import internetsearch
 
 
-def barcodeSearch(barcode):
-    ingredients = []
-    ingredients = api.product.get(barcode, fields=["ingredients_text_en"])
-    print(ingredients)
-    if not ingredients:
-        internetsearch.Search(barcode)
-    else:
-        print("=" * 60)
-        print("INGREDIENTS FOUND:")
-        print("=" * 60)
-        return ingredients["ingredients_text_en"]
+def checkIngredients(ingredients):
+    nonKosherForPassover = [
+        "yeast",
+        "barley malt",
+        "vanilla extract",
+        "sodium bicarbonate",
+        "riboflavin",
+        "baking soda",
+        "leaven",
+        "baking powder",
+        "baking soda",
+    ]
+
+    badIngredients = []
+
+    for ingredient in ingredients:
+        ingredient_lower = ingredient.lower()
+        print(f"Checking ingredient: {ingredient_lower}")
+
+        for banned in nonKosherForPassover:
+            if banned in ingredient_lower:
+                badIngredients.append(banned)
+    badIngredients = list(set(badIngredients))
+    return badIngredients
 
 
-api = API(
+def productSearch(barcode):
+    # Try product API
+    try:
+        product = openFoodFacts.product.get(barcode,
+                                            fields=["ingredients_text_en"])
+        if product and product.get("ingredients_text_en"):
+            product["ingredients_text_en"] = product[
+                "ingredients_text_en"].split(",")
+            ingredients = {"ingredients": product["ingredients_text_en"]}
+            return ingredients
+    except Exception:
+        pass  # API failed, move on
+
+    # Try internet search
+    try:
+        ingredients = internetsearch.Search(barcode)
+        if ingredients:
+            return ingredients
+    except Exception:
+        pass  # Internet search failed
+
+    # Nothing worked
+    return None
+
+
+openFoodFacts = API(
     user_agent="<application name>",
     username=None,
     password=None,
@@ -30,6 +62,33 @@ api = API(
     version=APIVersion.v2,
     environment=Environment.net,
 )
-input = "041780351531"
 
-print(barcodeSearch(input))
+
+def main():
+    productData = []
+    #input = "034000003129"
+    input = "029000356733"
+    startTime = time.time()
+    productData = productSearch(input)
+    productData["ingredients"] = productData["ingredients"][0].split(",")  #pyright: ignore
+    endTime = time.time()
+    print(f"Time taken: {endTime - startTime} seconds")
+
+    if productData:
+        print("\n")
+        badIngredients = checkIngredients(productData['ingredients'])
+        if badIngredients:
+            print("\n")
+            print("-" * 60)
+            print("Product is not kosher for Passover")
+            for badIngredient in badIngredients:
+                print(f"Non-kosher ingredient found: {badIngredient}")
+        else:
+            print("\n")
+            print("-" * 60)
+            print("Product is probably kosher for Passover")
+    return
+
+
+if __name__ == "__main__":
+    main()

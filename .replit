@@ -1,10 +1,10 @@
 modules = ["c-clang14", "nodejs-20", "python-3.11"]
 [agent]
 expertMode = true
-
+integrations = ["web_scraper:1.0.0"]
 [nix]
 channel = "stable-25_05"
-packages = ["geckodriver"]
+packages = ["chromedriver", "chromium", "geckodriver", "xcodebuild", "zlib"]
 
 [workflows]
 runButton = "Project"

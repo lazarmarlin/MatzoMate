@@ -26,19 +26,17 @@ def get_desktop_user_agent():
 
         # Hard filter mobile/tablet identifiers
         desktop_uas = [
-            ua
-            for ua in desktop_uas
-            if not any(m in ua.lower() for m in ["mobile", "android", "iphone", "ipad"])
+            ua for ua in desktop_uas
+            if not any(m in ua.lower()
+                       for m in ["mobile", "android", "iphone", "ipad"])
         ]
 
         return random.choice(desktop_uas)
 
     except (FakeUserAgentError, IndexError):
-        return (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        )
+        return ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36")
 
 
 def get_stealth_driver():
@@ -59,9 +57,10 @@ def get_stealth_driver():
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option("useAutomationExtension", False)
 
-    options.set_capability(
-        "goog:loggingPrefs", {"performance": "OFF", "browser": "OFF"}
-    )
+    options.set_capability("goog:loggingPrefs", {
+        "performance": "OFF",
+        "browser": "OFF"
+    })
 
     service = Service()
     driver = webdriver.Chrome(service=service, options=options)
@@ -87,17 +86,11 @@ def get_stealth_driver():
     driver.execute_script(
         "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
     )
-    print(user_agent)
     return driver
 
 
 def random_delay(min_sec=1.0, max_sec=3.0):
     time.sleep(random.uniform(min_sec, max_sec))
-
-
-def is_valid_amazon_url(url):
-    amazon_pattern = r"https?://(www\.)?amazon\.(com|co\.uk|ca|de|fr|es|it|in|jp|com\.br|com\.mx|com\.au)/.*"
-    return bool(re.match(amazon_pattern, url))
 
 
 def extract_product_name(driver):
@@ -109,9 +102,11 @@ def extract_product_name(driver):
 
 
 def scroll_page(driver):
-    driver.execute_script("window.scrollTo(0, document.body.scrollHeight / 3);")
+    driver.execute_script(
+        "window.scrollTo(0, document.body.scrollHeight / 3);")
     random_delay(0.25, 0.5)
-    driver.execute_script("window.scrollTo(0, document.body.scrollHeight / 2);")
+    driver.execute_script(
+        "window.scrollTo(0, document.body.scrollHeight / 2);")
     random_delay(0.5, 0.75)
 
 
@@ -140,11 +135,9 @@ def extract_ingredients(driver):
                 text = parent.text.strip()
 
                 # Clean label if duplicated
-                cleaned = (
-                    text.replace("Ingredients", "")
-                    .replace("INGREDIENTS", "")
-                    .strip(": \n")
-                )
+                cleaned = (text.replace("Ingredients",
+                                        "").replace("INGREDIENTS",
+                                                    "").strip(": \n"))
 
                 if cleaned:
                     ingredients.append(cleaned)
@@ -163,6 +156,7 @@ def clean_ingredients(raw_ingredients):
     for item in raw_ingredients:
         text = re.sub(r"\s+", " ", item)
         text = text.strip()
+        text = text.lower()
         if text and len(text) > 10:
             cleaned.append(text)
 
@@ -171,13 +165,6 @@ def clean_ingredients(raw_ingredients):
 
 
 def scrape_amazon_ingredients(url):
-    print(f"\nScraping: {url}\n")
-    print("-" * 60)
-
-    if not is_valid_amazon_url(url):
-        print("Error: Invalid Amazon URL. Please provide a valid Amazon product URL.")
-        return None
-
     driver = None
     try:
         print("Initializing stealth browser...")
@@ -191,17 +178,14 @@ def scrape_amazon_ingredients(url):
         random_delay(1, 2)
 
         try:
-            WebDriverWait(driver, 20).until(
-                EC.presence_of_element_located((By.ID, "productTitle"))
-            )
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.ID, "productTitle")))
         except TimeoutException:
-            print("Warning: Page took too long to load or product not found.")
+            print("Warning: Page took too long to load")
 
         scroll_page(driver)
 
         product_name = extract_product_name(driver)
-        print(f"Product: {product_name}\n")
-
         raw_ingredients = extract_ingredients(driver)
 
         if not raw_ingredients:
@@ -214,17 +198,11 @@ def scrape_amazon_ingredients(url):
 
         cleaned = clean_ingredients(raw_ingredients)
 
-        print("=" * 60)
-        print("INGREDIENTS FOUND:")
-        print("=" * 60)
-
-        for item in cleaned:
-            if "ingredient" in item.lower():
-                print(f"\n{item}\n")
-            else:
-                print(f"  {item}")
-
-        return {"product_name": product_name, "url": url, "ingredients": cleaned}
+        return {
+            "product_name": product_name,
+            "url": url,
+            "ingredients": cleaned
+        }
 
     except Exception as e:
         print(f"Error during scraping: {e}")
@@ -232,30 +210,15 @@ def scrape_amazon_ingredients(url):
 
     finally:
         if driver:
+            print("Closing browser...")
             driver.quit()
 
 
-#
-#    if len(sys.argv) < 2:
-#        print("Amazon Ingredient Scraper (Selenium Edition)")
-#        print("=" * 45)
-#        print("\nUsage: python amazon_scraper.py <amazon_product_url>")
-#        print("\nExample:")
-#        print("  python amazon_scraper.py https://www.amazon.com/dp/B0XXXXXXXX")
-#        print("\nFeatures:")
-#        print("  - Stealth browser to bypass bot detection")
-#        print("  - Random delays to mimic human behavior")
-#        print("  - Rotating user agents")
-#        print("  - Extracts ingredients from Important Information section")
-#        return
-
-
 def search(link):
-    startTime = time.time()
     result = scrape_amazon_ingredients(link)
-
     if result:
-        print("\n" + "=" * 60)
         print("Scraping completed successfully!")
-        endTime = time.time()
-        print(f"Time taken: {endTime - startTime} seconds")
+        return result
+    else:
+        print("Failed to scrape ingredients.")
+        return None
