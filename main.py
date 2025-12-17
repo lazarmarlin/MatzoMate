@@ -1,61 +1,13 @@
+import os
 import time
+from flask import Flask, request
+from twilio.twiml.messaging_response import MessagingResponse
 from openfoodfacts import API, APIVersion, Country, Environment
-import internetsearch
 
-
-def checkIngredients(ingredients):
-    nonKosherForPassover = [
-        "yeast",
-        "barley malt",
-        "vanilla extract",
-        "sodium bicarbonate",
-        "riboflavin",
-        "baking soda",
-        "leaven",
-        "baking powder",
-        "baking soda",
-    ]
-
-    badIngredients = []
-
-    for ingredient in ingredients:
-        ingredient_lower = ingredient.lower()
-        print(f"Checking ingredient: {ingredient_lower}")
-
-        for banned in nonKosherForPassover:
-            if banned in ingredient_lower:
-                badIngredients.append(banned)
-    badIngredients = list(set(badIngredients))
-    return badIngredients
-
-
-def productSearch(barcode):
-    # Try product API
-    try:
-        product = openFoodFacts.product.get(barcode,
-                                            fields=["ingredients_text_en"])
-        if product and product.get("ingredients_text_en"):
-            product["ingredients_text_en"] = product[
-                "ingredients_text_en"].split(",")
-            ingredients = {"ingredients": product["ingredients_text_en"]}
-            return ingredients
-    except Exception:
-        pass  # API failed, move on
-
-    # Try internet search
-    try:
-        ingredients = internetsearch.Search(barcode)
-        if ingredients:
-            return ingredients
-    except Exception:
-        pass  # Internet search failed
-
-    # Nothing worked
-    return None
-
+app = Flask(__name__)
 
 openFoodFacts = API(
-    user_agent="<application name>",
+    user_agent="IngredientFinderSMS/1.0",
     username=None,
     password=None,
     country=Country.world,
@@ -63,31 +15,94 @@ openFoodFacts = API(
     environment=Environment.net,
 )
 
+NON_KOSHER_FOR_PASSOVER = [
+    "yeast",
+    "barley malt",
+    "vanilla extract",
+    "sodium bicarbonate",
+    "riboflavin",
+    "baking soda",
+    "leaven",
+    "baking powder",
+]
 
-def main():
-    productData = []
-    #input = "034000003129"
-    input = "029000356733"
-    startTime = time.time()
-    productData = productSearch(input)
-    productData["ingredients"] = productData["ingredients"][0].split(",")  #pyright: ignore
-    endTime = time.time()
-    print(f"Time taken: {endTime - startTime} seconds")
 
-    if productData:
-        print("\n")
-        badIngredients = checkIngredients(productData['ingredients'])
-        if badIngredients:
-            print("\n")
-            print("-" * 60)
-            print("Product is not kosher for Passover")
-            for badIngredient in badIngredients:
-                print(f"Non-kosher ingredient found: {badIngredient}")
-        else:
-            print("\n")
-            print("-" * 60)
-            print("Product is probably kosher for Passover")
-    return
+def check_ingredients(ingredients):
+    bad_ingredients = []
+    for ingredient in ingredients:
+        ingredient_lower = ingredient.lower()
+        for banned in NON_KOSHER_FOR_PASSOVER:
+            if banned in ingredient_lower:
+                bad_ingredients.append(banned)
+    return list(set(bad_ingredients))
+
+
+def product_search(barcode):
+    try:
+        product = openFoodFacts.product.get(barcode, fields=["ingredients_text_en", "product_name"])
+        if product and product.get("ingredients_text_en"):
+            ingredients = product["ingredients_text_en"].split(",")
+            ingredients = [i.strip() for i in ingredients]
+            return {
+                "name": product.get("product_name", "Unknown Product"),
+                "ingredients": ingredients
+            }
+    except Exception as e:
+        print(f"Error searching product: {e}")
+    return None
+
+
+def format_response(barcode, product_data):
+    if not product_data:
+        return f"Sorry, I couldn't find ingredients for barcode: {barcode}"
+    
+    name = product_data.get("name", "Unknown Product")
+    ingredients = product_data.get("ingredients", [])
+    bad_ingredients = check_ingredients(ingredients)
+    
+    response = f"Product: {name}\n\n"
+    
+    if bad_ingredients:
+        response += "NOT Kosher for Passover\n"
+        response += f"Contains: {', '.join(bad_ingredients)}"
+    else:
+        response += "Probably Kosher for Passover"
+    
+    return response
+
+
+@app.route("/sms", methods=["POST"])
+def sms_reply():
+    incoming_msg = request.values.get("Body", "").strip()
+    print(f"Received SMS: {incoming_msg}")
+    
+    resp = MessagingResponse()
+    
+    barcode = "".join(filter(str.isdigit, incoming_msg))
+    
+    if not barcode:
+        resp.message("Please send a barcode number to look up ingredients.")
+        return str(resp)
+    
+    print(f"Looking up barcode: {barcode}")
+    product_data = product_search(barcode)
+    response_text = format_response(barcode, product_data)
+    
+    print(f"Sending response: {response_text}")
+    resp.message(response_text)
+    
+    return str(resp)
+
+
+@app.route("/")
+def index():
+    return "Ingredient Finder SMS Service is running. Send a barcode via SMS to look up ingredients."
+
+
+@app.route("/health")
+def health():
+    return {"status": "ok"}
+
 
 if __name__ == "__main__":
-    main()
+    app.run(host="0.0.0.0", port=5000, debug=True)
