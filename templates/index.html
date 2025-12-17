@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Live Output</title>
+    <style>
+        body {
+            background: #111;
+            color: #0f0;
+            font-family: monospace;
+        }
+        #terminal {
+            white-space: pre-wrap;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<h3>Process Output</h3>
+<div id="terminal"></div>
+
+<script>
+    const terminal = document.getElementById("terminal");
+    const eventSource = new EventSource("/stream");
+
+    eventSource.onmessage = function(event) {
+        terminal.textContent += event.data + "\n";
+        terminal.scrollTop = terminal.scrollHeight;
+    };
+</script>
+
+</body>
+</html>
