@@ -7,10 +7,12 @@ dependencies = [
     "ddgs>=9.9.3",
     "duckduckgo-search>=8.1.1",
     "fake-useragent>=2.2.0",
+    "flask>=3.1.2",
     "openai>=2.13.0",
     "openfoodfacts>=3.3.0",
     "python-dotenv>=1.2.1",
     "requests>=2.32.5",
     "selenium>=4.39.0",
     "selenium-stealth>=1.0.6",
+    "twilio>=9.9.0",
 ]
