@@ -29,14 +29,14 @@
             input#upc {
                 flex: 1;
                 padding: 12px;
-                font-size: 16px; /* prevents iOS zoom */
+                font-size: 16px;
                 background: #000;
                 color: #0f0;
                 border: 1px solid #0f0;
                 border-radius: 6px;
             }
 
-            button#start {
+            button {
                 padding: 12px 16px;
                 font-size: 16px;
                 background: #0f0;
@@ -46,7 +46,7 @@
                 cursor: pointer;
             }
 
-            button#start:active {
+            button:active {
                 opacity: 0.8;
             }
 
@@ -61,14 +61,18 @@
                 font-size: 14px;
             }
 
-            /* Small screens */
+            #video {
+                display: none;
+                width: 100%;
+                max-height: 40vh;
+                margin-bottom: 10px;
+                border: 1px solid #0f0;
+                border-radius: 6px;
+            }
+
             @media (max-width: 480px) {
                 .controls {
                     flex-direction: column;
-                }
-
-                button#start {
-                    width: 100%;
                 }
             }
         </style>
@@ -77,18 +81,73 @@
     <body>
         <h3>Matzo Mate</h3>
 
+        <video id="video" playsinline></video>
+
         <div class="controls">
             <input type="text" id="upc" placeholder="Enter UPC" />
+            <button id="scan">Scan</button>
             <button id="start">Start</button>
         </div>
 
         <div id="terminal"></div>
+
         <script>
             let eventSource = null;
+            let stream = null;
+            let detector = null;
+            let scanning = false;
 
-            document.getElementById("start").onclick = function () {
-                const upcInput = document.getElementById("upc");
-                const terminal = document.getElementById("terminal");
+            const upcInput = document.getElementById("upc");
+            const terminal = document.getElementById("terminal");
+            const video = document.getElementById("video");
+
+            // ---- BARCODE SCANNER ----
+            document.getElementById("scan").onclick = async () => {
+                if (!("BarcodeDetector" in window)) {
+                    alert("Barcode scanning not supported on this browser");
+                    return;
+                }
+
+                detector = new BarcodeDetector({
+                    formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"]
+                });
+
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "environment" }
+                });
+
+                video.srcObject = stream;
+                video.style.display = "block";
+                await video.play();
+                scanning = true;
+
+                scanLoop();
+            };
+
+            async function scanLoop() {
+                if (!scanning) return;
+
+                try {
+                    const codes = await detector.detect(video);
+                    if (codes.length > 0) {
+                        upcInput.value = codes[0].rawValue;
+                        stopScan();
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+
+                requestAnimationFrame(scanLoop);
+            }
+
+            function stopScan() {
+                scanning = false;
+                video.style.display = "none";
+                stream?.getTracks().forEach(t => t.stop());
+            }
+
+            // ---- EXISTING STREAM LOGIC ----
+            document.getElementById("start").onclick = () => {
                 const upc = upcInput.value.trim();
 
                 if (!upc) {
@@ -96,24 +155,18 @@
                     return;
                 }
 
-                // Close existing stream if any
-                if (eventSource) {
-                    eventSource.close();
-                }
+                if (eventSource) eventSource.close();
 
-                terminal.textContent = "";
-                terminal.textContent += "Starting process...\n";
+                terminal.textContent = "Starting process...\n";
 
-                eventSource = new EventSource(
-                    "/stream/" + encodeURIComponent(upc),
-                );
+                eventSource = new EventSource("/stream/" + encodeURIComponent(upc));
 
-                eventSource.onmessage = function (event) {
+                eventSource.onmessage = event => {
                     terminal.textContent += event.data + "\n";
                     terminal.scrollTop = terminal.scrollHeight;
                 };
 
-                eventSource.onerror = function () {
+                eventSource.onerror = () => {
                     terminal.textContent += "\n[Stream closed]\n";
                     eventSource.close();
                 };

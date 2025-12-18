@@ -24,7 +24,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python run.py"
+args = "python server.py"
 
 [workflows.workflow.metadata]
 outputType = "console"
