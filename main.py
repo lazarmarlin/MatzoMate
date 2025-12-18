@@ -1,6 +1,8 @@
+import sys
 import time
 
 from openfoodfacts import API, APIVersion, Country, Environment
+
 import internetsearch
 
 
@@ -33,11 +35,9 @@ def checkIngredients(ingredients):
 def productSearch(barcode):
     # Try product API
     try:
-        product = openFoodFacts.product.get(barcode,
-                                            fields=["ingredients_text_en"])
+        product = openFoodFacts.product.get(barcode, fields=["ingredients_text_en"])
         if product and product.get("ingredients_text_en"):
-            product["ingredients_text_en"] = product[
-                "ingredients_text_en"].split(",")
+            product["ingredients_text_en"] = product["ingredients_text_en"].split(",")
             ingredients = {"ingredients": product["ingredients_text_en"]}
             return ingredients
     except Exception:
@@ -65,19 +65,19 @@ openFoodFacts = API(
 )
 
 
-def main():
+def main(upc):
     productData = []
-    #input = "034000003129"
-    input = "029000356733"
+    # input = "034000003129"
+    # input = "029000356733"
     startTime = time.time()
-    productData = productSearch(input)
-    productData["ingredients"] = productData["ingredients"][0].split(",")  #pyright: ignore
+    productData = productSearch(upc)
+    productData["ingredients"] = productData["ingredients"][0].split(",")  # pyright: ignore
     endTime = time.time()
     print(f"Time taken: {endTime - startTime} seconds")
 
     if productData:
         print("\n")
-        badIngredients = checkIngredients(productData['ingredients'])
+        badIngredients = checkIngredients(productData["ingredients"])
         if badIngredients:
             print("\n")
             print("-" * 60)
@@ -90,7 +90,5 @@ def main():
             print("Product is probably kosher for Passover")
     return
 
-if __name__ == "__main__":
-     main()
 
-
+main(sys.argv[1])

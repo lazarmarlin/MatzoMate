@@ -26,17 +26,19 @@ def get_desktop_user_agent():
 
         # Hard filter mobile/tablet identifiers
         desktop_uas = [
-            ua for ua in desktop_uas
-            if not any(m in ua.lower()
-                       for m in ["mobile", "android", "iphone", "ipad"])
+            ua
+            for ua in desktop_uas
+            if not any(m in ua.lower() for m in ["mobile", "android", "iphone", "ipad"])
         ]
 
         return random.choice(desktop_uas)
 
     except (FakeUserAgentError, IndexError):
-        return ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36")
+        return (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        )
 
 
 def get_stealth_driver():
@@ -57,10 +59,9 @@ def get_stealth_driver():
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option("useAutomationExtension", False)
 
-    options.set_capability("goog:loggingPrefs", {
-        "performance": "OFF",
-        "browser": "OFF"
-    })
+    options.set_capability(
+        "goog:loggingPrefs", {"performance": "OFF", "browser": "OFF"}
+    )
 
     service = Service()
     driver = webdriver.Chrome(service=service, options=options)
@@ -102,11 +103,9 @@ def extract_product_name(driver):
 
 
 def scroll_page(driver):
-    driver.execute_script(
-        "window.scrollTo(0, document.body.scrollHeight / 3);")
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight / 3);")
     random_delay(0.25, 0.5)
-    driver.execute_script(
-        "window.scrollTo(0, document.body.scrollHeight / 2);")
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight / 2);")
     random_delay(0.5, 0.75)
 
 
@@ -135,9 +134,11 @@ def extract_ingredients(driver):
                 text = parent.text.strip()
 
                 # Clean label if duplicated
-                cleaned = (text.replace("Ingredients",
-                                        "").replace("INGREDIENTS",
-                                                    "").strip(": \n"))
+                cleaned = (
+                    text.replace("Ingredients", "")
+                    .replace("INGREDIENTS", "")
+                    .strip(": \n")
+                )
 
                 if cleaned:
                     ingredients.append(cleaned)
@@ -179,7 +180,8 @@ def scrape_amazon_ingredients(url):
 
         try:
             WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.ID, "productTitle")))
+                EC.presence_of_element_located((By.ID, "productTitle"))
+            )
         except TimeoutException:
             print("Warning: Page took too long to load")
 
@@ -198,11 +200,7 @@ def scrape_amazon_ingredients(url):
 
         cleaned = clean_ingredients(raw_ingredients)
 
-        return {
-            "product_name": product_name,
-            "url": url,
-            "ingredients": cleaned
-        }
+        return {"product_name": product_name, "url": url, "ingredients": cleaned}
 
     except Exception as e:
         print(f"Error during scraping: {e}")

@@ -1,33 +1,123 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-    <title>Live Output</title>
-    <style>
-        body {
-            background: #111;
-            color: #0f0;
-            font-family: monospace;
-        }
-        #terminal {
-            white-space: pre-wrap;
-            padding: 20px;
-        }
-    </style>
-</head>
-<body>
+    <head>
+        <title>Live Output</title>
 
-<h3>Process Output</h3>
-<div id="terminal"></div>
+        <!-- REQUIRED for mobile -->
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-<script>
-    const terminal = document.getElementById("terminal");
-    const eventSource = new EventSource("/stream");
+        <style>
+            body {
+                background: #111;
+                color: #0f0;
+                font-family: monospace;
+                margin: 0;
+                padding: 12px;
+            }
 
-    eventSource.onmessage = function(event) {
-        terminal.textContent += event.data + "\n";
-        terminal.scrollTop = terminal.scrollHeight;
-    };
-</script>
+            h3 {
+                text-align: center;
+                margin-top: 0;
+            }
 
-</body>
+            .controls {
+                display: flex;
+                gap: 10px;
+                margin-bottom: 12px;
+            }
+
+            input#upc {
+                flex: 1;
+                padding: 12px;
+                font-size: 16px; /* prevents iOS zoom */
+                background: #000;
+                color: #0f0;
+                border: 1px solid #0f0;
+                border-radius: 6px;
+            }
+
+            button#start {
+                padding: 12px 16px;
+                font-size: 16px;
+                background: #0f0;
+                color: #000;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+            }
+
+            button#start:active {
+                opacity: 0.8;
+            }
+
+            #terminal {
+                white-space: pre-wrap;
+                padding: 12px;
+                height: 60vh;
+                overflow-y: auto;
+                border: 1px solid #0f0;
+                border-radius: 6px;
+                background: #000;
+                font-size: 14px;
+            }
+
+            /* Small screens */
+            @media (max-width: 480px) {
+                .controls {
+                    flex-direction: column;
+                }
+
+                button#start {
+                    width: 100%;
+                }
+            }
+        </style>
+    </head>
+
+    <body>
+        <h3>Matzo Mate</h3>
+
+        <div class="controls">
+            <input type="text" id="upc" placeholder="Enter UPC" />
+            <button id="start">Start</button>
+        </div>
+
+        <div id="terminal"></div>
+        <script>
+            let eventSource = null;
+
+            document.getElementById("start").onclick = function () {
+                const upcInput = document.getElementById("upc");
+                const terminal = document.getElementById("terminal");
+                const upc = upcInput.value.trim();
+
+                if (!upc) {
+                    alert("Please enter a UPC");
+                    return;
+                }
+
+                // Close existing stream if any
+                if (eventSource) {
+                    eventSource.close();
+                }
+
+                terminal.textContent = "";
+                terminal.textContent += "Starting process...\n";
+
+                eventSource = new EventSource(
+                    "/stream/" + encodeURIComponent(upc),
+                );
+
+                eventSource.onmessage = function (event) {
+                    terminal.textContent += event.data + "\n";
+                    terminal.scrollTop = terminal.scrollHeight;
+                };
+
+                eventSource.onerror = function () {
+                    terminal.textContent += "\n[Stream closed]\n";
+                    eventSource.close();
+                };
+            };
+        </script>
+    </body>
 </html>
