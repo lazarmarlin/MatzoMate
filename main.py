@@ -2,9 +2,8 @@ import sys
 import time
 
 from openfoodfacts import API, APIVersion, Country, Environment
-
+import database
 import internetsearch
-
 
 def checkIngredients(ingredients):
     nonKosherForPassover = [
@@ -31,28 +30,81 @@ def checkIngredients(ingredients):
     badIngredients = list(set(badIngredients))
     return badIngredients
 
+def databaseSearch(barcode):
+    product = database.findProduct(barcode)
+    if product:
+        return product
+    else:
+        return None
 
 def productSearch(barcode):
-    # Try product API
-    try:
-        product = openFoodFacts.product.get(barcode, fields=["ingredients_text_en"])
-        if product and product.get("ingredients_text_en"):
-            product["ingredients_text_en"] = product["ingredients_text_en"].split(",")
-            ingredients = {"ingredients": product["ingredients_text_en"]}
-            return ingredients
-    except Exception:
-        pass  # API failed, move on
+    barcode = str(barcode)
 
-    # Try internet search
+    # 1️⃣ Try database
     try:
-        ingredients = internetsearch.Search(barcode)
-        if ingredients:
-            return ingredients
-    except Exception:
-        pass  # Internet search failed
+        product = databaseSearch(barcode)
+        if product:
+            return product
+    except Exception as e:
+        print("Database error:", e)
 
-    # Nothing worked
+    # 2️⃣ Try OpenFoodFacts
+    try:
+        productData = openFoodFacts.product.get(
+            barcode,
+            fields=[
+                "ingredients_text_en",
+                "abbreviated_product_name",
+                "product_name_en",
+                "product_name"
+            ]
+        )
+
+        if productData and productData.get("ingredients_text_en"):
+            ingredients = [
+                i.strip()
+                for i in productData["ingredients_text_en"].split(",")
+                if i.strip()
+            ]
+
+            name = (
+                productData.get("abbreviated_product_name")
+                or productData.get("product_name_en")
+                or productData.get("product_name")
+            )
+
+            result = {
+                "ingredients": ingredients,
+                "product_name": name,
+                "url": f"https://world.openfoodfacts.org/product/{barcode}"
+            }
+
+            print("Adding product to database")
+            database.addProduct(barcode, name, ingredients, result["url"])
+            return result
+
+    except Exception as e:
+        print("OpenFoodFacts error:", e)
+
+    # 3️⃣ Try internet search
+    try:
+        print(barcode)
+        productData = internetsearch.Search(barcode)
+        if productData:
+            print("Adding product to database")
+            database.addProduct(
+                barcode,
+                productData["product_name"],
+                productData["ingredients"],
+                productData["url"]
+            )
+            return productData
+    except Exception as e:
+        print("Internet search error:", e)
+
+    # ❌ Nothing worked
     return None
+
 
 
 openFoodFacts = API(
@@ -63,20 +115,20 @@ openFoodFacts = API(
     version=APIVersion.v2,
     environment=Environment.net,
 )
-
-
+        
 def main(upc):
     productData = []
     # input = "034000003129"
     # input = "029000356733"
     startTime = time.time()
     productData = productSearch(upc)
-    productData["ingredients"] = productData["ingredients"][0].split(",")  # pyright: ignore
     endTime = time.time()
     print(f"Time taken: {endTime - startTime} seconds")
-
+    
     if productData:
         print("\n")
+        print(productData["product_name"])
+        print("-" * 60)
         badIngredients = checkIngredients(productData["ingredients"])
         if badIngredients:
             print("\n")

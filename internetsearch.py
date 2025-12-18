@@ -20,7 +20,7 @@ def Search(upcCode):
     maxResults = 5
     attempts = 1
     while amazonLinkNotFound:
-        results = DDGS().text(upcCode, max_results=maxResults)
+        results = DDGS().text(f" amazon {upcCode}", max_results=maxResults)
         for result in results:
             if "www.amazon.com/" in result["href"]:
                 if upcCode in result["body"] or result["title"]:
@@ -37,6 +37,7 @@ def Search(upcCode):
                 attempts += 1
                 maxResults += 5
                 print("Amazon link not found yet trying again \n")
-                print(f"Attempt number {attempts} with {maxResults} results \n")
+                print(
+                    f"Attempt number {attempts} with {maxResults} results \n")
 
     return amazonsearch.search(amazonLink)
