@@ -81,6 +81,86 @@ def sounds(filename):
     return send_file(target)
 
 
+@app.after_request
+def _cors(resp):
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    return resp
+
+
+def _verdict(product, upc=""):
+    ingredients = product.get("ingredients") or []
+    results = checkIngredients(ingredients)
+    chametz = results.get("chametz") or []
+    real = [item for item in chametz if not str(item).startswith("[AI flagged]")]
+    flags = [item for item in chametz if str(item).startswith("[AI flagged]")]
+    return {
+        "upc": upc,
+        "product_name": product.get("product_name", "Unknown"),
+        "manufacturer": product.get("manufacturer"),
+        "source": product.get("source", ""),
+        "url": product.get("url", ""),
+        "ingredients": ingredients,
+        "chametz": real,
+        "ai_flags": flags,
+        "kosher_for_passover": not real,
+    }
+
+
+@app.route("/api")
+def api_index():
+    return jsonify({
+        "service": "Matzo Mate",
+        "routes": [
+            {"method": "GET", "path": "/api/health"},
+            {"method": "GET", "path": "/api/check/<upc>"},
+            {"method": "POST", "path": "/api/check", "body": {"upc": "012345678905"}},
+            {"method": "POST", "path": "/api/check", "body": {"ingredients": ["salt", "wheat flour"]}},
+        ],
+    })
+
+
+@app.route("/api/health")
+def health():
+    return jsonify({"ok": True, "service": "Matzo Mate"})
+
+
+@app.route("/api/check", methods=["GET", "POST", "OPTIONS"])
+@app.route("/api/check/<upc>", methods=["GET", "OPTIONS"])
+def api_check(upc=None):
+    if request.method == "OPTIONS":
+        return ("", 204)
+
+    body = request.get_json(silent=True) or {}
+    raw = body.get("ingredients")
+    if isinstance(raw, str):
+        ingredients = [item.strip() for item in raw.split(",") if item.strip()]
+    elif isinstance(raw, list):
+        ingredients = [str(item).strip() for item in raw if str(item).strip()]
+    else:
+        ingredients = None
+
+    upc = str(upc or body.get("upc") or request.args.get("upc") or "").strip()
+
+    if ingredients is not None and not upc:
+        return jsonify(_verdict({
+            "product_name": "Custom list",
+            "ingredients": ingredients,
+            "source": "request",
+        }))
+
+    if not upc:
+        return jsonify({"error": "upc or ingredients required"}), 400
+    if len(upc) > 20:
+        return jsonify({"error": "Invalid UPC"}), 400
+
+    product = productSearch(upc)
+    if not product:
+        return jsonify({"error": "product not found", "upc": upc, "status": "not_found"}), 404
+    return jsonify(_verdict(product, upc))
+
+
 # ---------------------------------------------------------------------------
 # SSE stream
 # ---------------------------------------------------------------------------
@@ -238,6 +318,6 @@ if __name__ == "__main__":
     port  = int(os.getenv("PORT", "5000"))
     print(f"Matzo Mate server on port {port} — debug logging "
           f"{'ON' if debug_enabled() else 'OFF (use DEBUG=1 or --debug)'}")
-    # For production with multiple phones, run with gunicorn instead:
-    #   gunicorn --worker-class=gthread --threads=20 --bind 0.0.0.0:5000 server:app
+    # Render / production:
+    #   gunicorn server:app --worker-class gthread --workers 1 --threads 8 --timeout 180 --bind 0.0.0.0:$PORT
     app.run(debug=debug, threaded=True, host="0.0.0.0", port=port)
