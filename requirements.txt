@@ -17,3 +17,4 @@ selenium-stealth
 
 # USDA + parallel fetch
 anyio
+gunicorn
