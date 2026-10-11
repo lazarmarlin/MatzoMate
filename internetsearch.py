@@ -1,43 +1,15 @@
-import re
+"""
+internetsearch.py — thin wrapper kept for compatibility.
 
-from ddgs import DDGS
+When main.py already has a product name from the APIs, it calls
+Search() directly to skip the name-resolution step and go straight
+to the Amazon scrape.
+"""
 
-import amazonsearch
+from namesearch import _amazon_fallback
 
-
-def clean_amazon_url(url, domain="amazon.com", language="en_US"):
-    match = re.search(r"/([A-Z0-9]{10})(?:[/?]|$)", url)
-    if not match:
-        raise ValueError("ASIN not found")
-
-    asin = match.group(1)
-    return f"https://www.{domain}/dp/{asin}?language={language}&th=1"
+logger = __import__('logging').getLogger(__name__)
 
 
-def Search(upcCode):
-    amazonLink = None
-    amazonLinkNotFound = True
-    maxResults = 5
-    attempts = 1
-    while amazonLinkNotFound:
-        results = DDGS().text(f" amazon {upcCode}", max_results=maxResults)
-        for result in results:
-            if "www.amazon.com/" in result["href"]:
-                if upcCode in result["body"] or result["title"]:
-                    print("Amazon link found")
-                    amazonLink = clean_amazon_url(result["href"])
-                    print(amazonLink)
-                    amazonLinkNotFound = False
-                    break
-                else:
-                    print("Amazon link found but not the right product")
-                    print(result["title"])
-                    continue
-            else:
-                attempts += 1
-                maxResults += 5
-                print("Amazon link not found yet trying again \n")
-                print(
-                    f"Attempt number {attempts} with {maxResults} results \n")
-
-    return amazonsearch.search(amazonLink)
+def Search(barcode, productName=None):
+    return _amazon_fallback(str(barcode), productName)
